@@ -1,3 +1,5 @@
+#!/bin/bash
+
 # 1. Source the environment file
 ENV_FILE="$HOME/scripts/default.env"
 
