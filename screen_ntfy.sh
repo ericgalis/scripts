@@ -1,7 +1,16 @@
-#!/bin/bash
+# 1. Source the environment file
+ENV_FILE="$HOME/scripts/default.env"
 
-# Configuration: Default topic name
-DEFAULT_TOPIC="topic"
+if [ -f "$ENV_FILE" ]; then
+    # Source the file, ignoring lines that are comments
+    export $(grep -v '^#' "$ENV_FILE" | xargs)
+else
+    echo "Warning: $ENV_FILE not found. Using script defaults."
+fi
+
+# 2. Configuration: Default topic name (Fallback if not in .env)
+# Uses the env variable if present, otherwise defaults to your specific topic
+DEFAULT_TOPIC="${DEFAULT_TOPIC:-defaulttopic}"
 
 usage() {
     echo "Usage: $0 [options] -- <command>"
