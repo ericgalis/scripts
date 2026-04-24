@@ -2,28 +2,18 @@
 
 # 1. Source the environment file
 ENV_FILE="$HOME/scripts/default.env"
-
 if [ -f "$ENV_FILE" ]; then
-    # Source the file, ignoring lines that are comments
     export $(grep -v '^#' "$ENV_FILE" | xargs)
-else
-    echo "Warning: $ENV_FILE not found. Using script defaults."
 fi
 
-# 2. Configuration: Default topic name (Fallback if not in .env)
-# Uses the env variable if present, otherwise defaults to your specific topic
-DEFAULT_TOPIC="${DEFAULT_TOPIC:-defaulttopic}"
+DEFAULT_TOPIC="${DEFAULT_TOPIC:-prezericlaptop1106}"
 
 usage() {
     echo "Usage: $0 [options] -- <command>"
-    echo ""
     echo "Options:"
     echo "  -h, --help      Show this help message"
-    echo "  -t, --title     Set the notification title (Default: Process Complete)"
-    echo "  -p, --priority  Set the priority (1-5 or min, low, default, high, max)"
-    echo "  -g, --tags      Set notification tags (comma separated)"
-    echo "  -m, --message   Override message (Default: The command string)"
-    echo "  --topic         Override the default ntfy topic"
+    echo "  -t, --title     Set notification title"
+    echo "  --topic         Override ntfy topic"
     exit 0
 }
 
@@ -31,19 +21,12 @@ usage() {
 # Argument Parsing
 # ---------------------------------------------------------
 TITLE="Process Complete"
-PRIORITY="default"
-USER_TAGS=""
-CUSTOM_MESSAGE=""
 TOPIC="$DEFAULT_TOPIC"
 
-# Extract options before the -- separator
 while [[ "$#" -gt 0 ]]; do
     case $1 in
         -h|--help) usage ;;
         -t|--title) TITLE="$2"; shift ;;
-        -p|--priority) PRIORITY="$2"; shift ;;
-        -g|--tags) USER_TAGS="$2"; shift ;;
-        -m|--message) CUSTOM_MESSAGE="$2"; shift ;;
         --topic) TOPIC="$2"; shift ;;
         --) shift; break ;;
         *) echo "Unknown option: $1"; usage ;;
@@ -52,63 +35,55 @@ while [[ "$#" -gt 0 ]]; do
 done
 
 CMD="$@"
-
-if [ -z "$CMD" ]; then
-    echo "Error: No command specified."
-    usage
-fi
+[ -z "$CMD" ] && usage
 
 # ---------------------------------------------------------
 # The Screen Wrapper Logic
 # ---------------------------------------------------------
-# Check if we are already inside a screen session named 'ntfy_bg'
-# If not, relaunch the script inside screen and exit the current shell.
 if [ "$NTFY_IN_SCREEN" != "true" ]; then
-    # Extract the first word of the command for the screen name
-    # e.g., "rsync -av ..." becomes "rsync"
     SHORT_CMD=$(echo "$CMD" | awk '{print $1}' | xargs basename)
-    SESSION_NAME="ntfy_${SHORT_CMD}_$(date +%M%S)"
-    echo "🚀 Launching command in background screen: $SESSION_NAME"
-    echo "You can check progress with: screen -r $SESSION_NAME"
+    SESSION_NAME="ntfy_${SHORT_CMD}_$(date +%M%S)" 
     
-    # Relaunch the script with a flag to prevent infinite loops
+    echo "🚀 Launching background screen: $SESSION_NAME"
+    echo "The screen session will remain open for review after completion."
+    
     export NTFY_IN_SCREEN=true
-    screen -d -m -S "$SESSION_NAME" "$0" \
-        -t "$TITLE" -p "$PRIORITY" -g "$USER_TAGS" \
-        -m "$CUSTOM_MESSAGE" --topic "$TOPIC" -- $CMD
+    
+    # NEW LOGIC: We wrap the command and notification in a subshell 
+    # and tell screen to run a shell after that subshell finishes.
+    screen -d -m -S "$SESSION_NAME" bash -c "$0 -t '$TITLE' --topic '$TOPIC' -- $CMD; exec bash"
     
     exit 0
 fi
 
 # ---------------------------------------------------------
-# Execution (This part runs INSIDE the screen session)
+# Execution (Inside Screen)
 # ---------------------------------------------------------
-$CMD
+# Run the actual command
+eval "$CMD"
 EXIT_CODE=$?
-
-# Build the message
-if [ -n "$CUSTOM_MESSAGE" ]; then
-    FINAL_MESSAGE="$CUSTOM_MESSAGE"
-else
-    FINAL_MESSAGE="Command: $CMD"
-fi
 
 # Logic for Tags/Priority
 if [ $EXIT_CODE -eq 0 ]; then
-    FINAL_MESSAGE="$FINAL_MESSAGE (Status: Success)"
-    TAGS="${USER_TAGS:-white_check_mark}"
+    STATUS="Success"
+    TAGS="white_check_mark"
 else
-    FINAL_MESSAGE="$FINAL_MESSAGE (Status: Failed with exit code $EXIT_CODE)"
-    TAGS="${USER_TAGS:-x}"
-    [ "$PRIORITY" == "default" ] && PRIORITY="high"
+    STATUS="Failed (Code: $EXIT_CODE)"
+    TAGS="x"
 fi
 
 # Send notification
 curl -s -H "Title: $TITLE" \
-     -H "Priority: $PRIORITY" \
      -H "Tags: $TAGS" \
-     -d "$FINAL_MESSAGE" \
+     -d "Command: $CMD (Status: $STATUS)" \
      "https://ntfy.sh/$TOPIC"
 
-exit $EXIT_CODE
+# Final output to the screen terminal so you see it when you reattach
+echo "------------------------------------------------"
+echo "Process finished with exit code: $EXIT_CODE"
+echo "Notification sent to ntfy.sh/$TOPIC"
+echo "This screen session is staying open for your review."
+echo "Type 'exit' to close this session."
+echo "------------------------------------------------"
 
+exit $EXIT_CODE
