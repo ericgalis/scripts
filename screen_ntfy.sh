@@ -6,7 +6,7 @@ if [ -f "$ENV_FILE" ]; then
     export $(grep -v '^#' "$ENV_FILE" | xargs)
 fi
 
-DEFAULT_TOPIC="${DEFAULT_TOPIC:-prezericlaptop1106}"
+DEFAULT_TOPIC="${DEFAULT_TOPIC:-topic}"
 
 usage() {
     echo "Usage: $0 [options] -- <command>"
