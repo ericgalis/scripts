@@ -6,6 +6,27 @@
 
 unset PATH	# avoid accidental use of $PATH
 
+# ------------- Read from my personal lENV file --------------
+ENV_FILE="$HOME/scripts/default.env"
+LOGDIR="$HOME/logs"
+
+if [ -f "$ENV_FILE" ]; then
+    # Helper function to extract values cleanly without executing the file
+	get_env_val() {
+        local sed_cmd="/usr/bin/sed"
+        # This strips out optional single/double quotes and extracts the raw value
+        $sed_cmd -n "s/^$1=[\"']*\(.*[^\"']\)[\"']*/\1/p" "$ENV_FILE" | $sed_cmd "s/^$1=//"
+    }
+    
+    API_KEY=$(get_env_val "API_KEY");
+    SECRET_API_KEY=$(get_env_val "SECRET_API_KEY");
+    DOMAIN=$(get_env_val "DOMAIN");
+    SUBDOMAIN=$(get_env_val "SUBDOMAIN");
+else
+    $ECHO "Error: Configuration file not found at $ENV_FILE" >&2
+    exit 1
+fi
+
 # ------------- system commands used by this script --------------------
 CAT=/bin/cat;
 CP=/bin/cp;
@@ -19,12 +40,8 @@ READLINK=/usr/bin/readlink;
 TEE=/usr/bin/tee;
 
 # Configuration
-API_KEY="apikey";
-SECRET_API_KEY="apisecret";
-DOMAIN="example.com";
-SUBDOMAIN="";					# Use "" for root domain, or "subdomain" for subdomain.example.com
-SAVEIP="currentip";			# the filename to save the current ip address to
-LOGFILE=porkbun.last;		# save the log file to this file
+SAVEIP="$LOGDIR/currentip";			# the filename to save the current ip address to
+LOGFILE="$LOGDIR/porkbun.last";		# save the log file to this file
 # End of User Configurable Options
 
 SET_URL="https://api.porkbun.com/api/json/v3/dns/editByNameType/$DOMAIN/A/$SUBDOMAIN";
